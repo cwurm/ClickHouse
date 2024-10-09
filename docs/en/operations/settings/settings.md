@@ -9221,7 +9221,7 @@ Type: Bool
 
 Default value: 1
 
-Allows or forbids empty INSERTs, enabled by default (throws an error on an empty insert). Only applies to inserts using [`clickhouse-client`](docs/en/interfaces/cli).
+Allows or forbids empty INSERTs, enabled by default (throws an error on an empty insert). Only applies to INSERTs using [`clickhouse-client`](/docs/en/interfaces/cli) and using the [gRPC interface](/docs/en/interfaces/grpc).
 
 ## throw_on_error_from_cache_on_write_operations {#throw_on_error_from_cache_on_write_operations}
 
