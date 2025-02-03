@@ -55,7 +55,7 @@ void ReplacingSortedAlgorithm::insertRow()
 {
     if (is_deleted_column_number != -1)
     {
-        if (!(cleanup && assert_cast<const ColumnUInt8 &>(*(*selected_row.all_columns)[is_deleted_column_number]).getData()[selected_row.row_num]))
+        if (!(cleanup && 1 == assert_cast<const ColumnUInt8 &>(*(*selected_row.all_columns)[is_deleted_column_number]).getData()[selected_row.row_num]))
             insertRowImpl();
     }
     else
@@ -191,11 +191,13 @@ IMergingAlgorithm::Status ReplacingSortedAlgorithm::merge()
         if (out_row_sources_buf)
             current_row_sources.emplace_back(current.impl->order, true);
 
+        UInt8 selected_state = 0;
+        UInt8 current_state = 0;
         if (is_deleted_column_number != -1)
         {
-            const UInt8 is_deleted = assert_cast<const ColumnUInt8 &>(*current->all_columns[is_deleted_column_number]).getData()[current->getRow()];
-            if (is_deleted > 1)
-                throw Exception(ErrorCodes::INCORRECT_DATA, "Incorrect data: is_deleted = {} (must be 1 or 0).", toString(is_deleted));
+            current_state = assert_cast<const ColumnUInt8 &>(*current->all_columns[is_deleted_column_number]).getData()[current->getRow()];
+            if (!selected_row.empty())
+                selected_state = assert_cast<const ColumnUInt8 &>(*(*selected_row.all_columns)[is_deleted_column_number]).getData()[selected_row.row_num];
         }
 
         /// A non-strict comparison, since we select the last row for the same version values.
@@ -206,9 +208,14 @@ IMergingAlgorithm::Status ReplacingSortedAlgorithm::merge()
                 *(*selected_row.all_columns)[version_column_number],
                 /* nan_direction_hint = */ 1) >= 0)
         {
-            max_pos = current_pos;
-            saveChunkForSkippingFinalFromSelectedRow();
-            setRowRef(selected_row, current);
+            // Insert and delete row always replaces previous row.
+            // Insert if not exists row only replaces delete row.
+            if (selected_row.empty() || current_state != 2 || selected_state == 1)
+            {
+                max_pos = current_pos;
+                saveChunkForSkippingFinalFromSelectedRow();
+                setRowRef(selected_row, current);
+            }
         }
 
         if (!current->isLast())
