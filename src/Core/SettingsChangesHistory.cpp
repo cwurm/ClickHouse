@@ -68,6 +68,7 @@ const VersionToSettingsChangesMap & getSettingsChangesHistory()
         {
             {"query_plan_use_new_logical_join_step", false, true, "Enable new step"},
             {"postgresql_fault_injection_probability", 0., 0., "New setting"},
+            {"allow_empty_partition_in_alter", true, false, "New setting to prevent accidentally using the wrong partition ID"},
         });
         addSettingsChanges(settings_changes_history, "25.1",
         {

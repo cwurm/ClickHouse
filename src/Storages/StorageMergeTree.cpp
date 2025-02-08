@@ -78,6 +78,7 @@ namespace Setting
     extern const SettingsBool parallel_replicas_for_non_replicated_merge_tree;
     extern const SettingsBool throw_on_unsupported_query_inside_transaction;
     extern const SettingsUInt64 max_parts_to_move;
+    extern const SettingsBool allow_empty_partition_in_alter;
 }
 
 namespace MergeTreeSetting
@@ -112,6 +113,7 @@ namespace ErrorCodes
     extern const int TABLE_IS_READ_ONLY;
     extern const int TOO_MANY_PARTS;
     extern const int PART_IS_LOCKED;
+    extern const int PARTITION_DOESNT_EXIST;
 }
 
 namespace ActionLocks
@@ -2260,6 +2262,9 @@ void StorageMergeTree::replacePartitionFrom(const StoragePtr & source_table, con
         src_parts = src_data.getVisibleDataPartsVector(local_context);
     else
         src_parts = src_data.getVisibleDataPartsVectorInPartition(local_context, partition_id);
+
+    if (!local_context->getSettingsRef()[Setting::allow_empty_partition_in_alter] && src_parts.empty())
+        throw Exception(ErrorCodes::PARTITION_DOESNT_EXIST, "Partition '{}' does not exist in table {}", partition_id, source_table->getStorageID().getNameForLogs());
 
     MutableDataPartsVector dst_parts;
     std::vector<scope_guard> dst_parts_locks;

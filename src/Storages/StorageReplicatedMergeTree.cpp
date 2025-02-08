@@ -176,6 +176,7 @@ namespace Setting
     extern const SettingsSeconds receive_timeout;
     extern const SettingsInt64 replication_wait_for_inactive_replica_timeout;
     extern const SettingsUInt64 select_sequential_consistency;
+    extern const SettingsBool allow_empty_partition_in_alter;
 }
 
 namespace MergeTreeSetting
@@ -8346,23 +8347,32 @@ void StorageReplicatedMergeTree::replacePartitionFrom(
     const auto metadata_snapshot = getInMemoryMetadataPtr();
     const MergeTreeData & src_data = checkStructureAndGetMergeTreeData(source_table, source_metadata_snapshot, metadata_snapshot);
 
+    const auto all_partitions = src_data.getAllPartitionIds();
     std::unordered_set<String> partitions;
+    String partition_id;
+
     if (partition->as<ASTPartition>()->all)
     {
         if (replace)
             throw DB::Exception(ErrorCodes::SUPPORT_IS_DISABLED, "Only support DROP/DETACH/ATTACH PARTITION ALL currently");
 
-        partitions = src_data.getAllPartitionIds();
+        partitions = std::move(all_partitions);
     }
     else
     {
         partitions = std::unordered_set<String>();
-        partitions.emplace(getPartitionIDFromQuery(partition, query_context));
+        partition_id = getPartitionIDFromQuery(partition, query_context);
+        if (all_partitions.contains(partition_id))
+            partitions.emplace(partition_id);
     }
     LOG_INFO(log, "Will try to attach {} partitions", partitions.size());
 
     if (partitions.empty())
+    {
+        if (!query_context->getSettingsRef()[Setting::allow_empty_partition_in_alter])
+            throw Exception(ErrorCodes::PARTITION_DOESNT_EXIST, "Partition '{}' does not exist in table {}", partition_id, source_table->getStorageID().getNameForLogs());
         return;
+    }
 
     const Stopwatch watch;
     ProfileEventsScope profile_events_scope;
@@ -8374,13 +8384,13 @@ void StorageReplicatedMergeTree::replacePartitionFrom(
     using Entry = std::unique_ptr<ReplicatedMergeTreeLogEntryData>;
     std::vector<Entry> entries(partitions.size());
     size_t idx = 0;
-    for (const auto & partition_id : partitions)
+    for (const auto & partition_to_replace : partitions)
     {
         entries[idx] = replacePartitionFromImpl(watch,
                 profile_events_scope,
                 metadata_snapshot,
                 src_data,
-                partition_id,
+                partition_to_replace,
                 zookeeper,
                 replace,
                 zero_copy_enabled,
