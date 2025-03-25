@@ -1088,9 +1088,9 @@ void MergeTreeData::MergingParams::check(const StorageInMemoryMetadata & metadat
 {
     const auto columns = metadata.getColumns().getAllPhysical();
 
-    if (!is_deleted_column.empty() && mode != MergingParams::Replacing)
+    if (!state_column.empty() && mode != MergingParams::Replacing)
         throw Exception(ErrorCodes::LOGICAL_ERROR,
-                        "is_deleted column for MergeTree cannot be specified in modes except Replacing.");
+                        "state column for MergeTree cannot be specified in modes except Replacing.");
 
     if (!sign_column.empty() && mode != MergingParams::Collapsing && mode != MergingParams::VersionedCollapsing)
         throw Exception(ErrorCodes::LOGICAL_ERROR,
@@ -1161,36 +1161,36 @@ void MergeTreeData::MergingParams::check(const StorageInMemoryMetadata & metadat
             throw Exception(ErrorCodes::NO_SUCH_COLUMN_IN_TABLE, "Version column {} does not exist in table declaration.", version_column);
     };
 
-    /// Check that if the is_deleted column is needed, it exists and is of type UInt8. If exist, version column must be defined too but version checks are not done here.
-    auto check_is_deleted_column = [this, & columns](bool is_optional, const std::string & storage)
+    /// Check that if the state column is needed, it exists and is of type UInt8. If exist, version column must be defined too but version checks are not done here.
+    auto check_state_column = [this, & columns](bool is_optional, const std::string & storage)
     {
-        if (is_deleted_column.empty())
+        if (state_column.empty())
         {
             if (is_optional)
                 return;
 
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "`is_deleted` ({}) column for storage {} is empty", is_deleted_column, storage);
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "`state` ({}) column for storage {} is empty", state_column, storage);
         }
 
         if (version_column.empty() && !is_optional)
-            throw Exception(ErrorCodes::LOGICAL_ERROR, "Version column ({}) for storage {} is empty while is_deleted ({}) is not.",
-                            version_column, storage, is_deleted_column);
+            throw Exception(ErrorCodes::LOGICAL_ERROR, "Version column ({}) for storage {} is empty while state ({}) is not.",
+                            version_column, storage, state_column);
 
-        bool miss_is_deleted_column = true;
+        bool miss_state_column = true;
         for (const auto & column : columns)
         {
-            if (column.name == is_deleted_column)
+            if (column.name == state_column)
             {
                 if (!typeid_cast<const DataTypeUInt8 *>(column.type.get()))
-                    throw Exception(ErrorCodes::BAD_TYPE_OF_FIELD, "is_deleted column ({}) for storage {} must have type UInt8. Provided column of type {}.",
-                                    is_deleted_column, storage, column.type->getName());
-                miss_is_deleted_column = false;
+                    throw Exception(ErrorCodes::BAD_TYPE_OF_FIELD, "state column ({}) for storage {} must have type UInt8. Provided column of type {}.",
+                        state_column, storage, column.type->getName());
+                miss_state_column = false;
                 break;
             }
         }
 
-        if (miss_is_deleted_column)
-            throw Exception(ErrorCodes::NO_SUCH_COLUMN_IN_TABLE, "is_deleted column {} does not exist in table declaration.", is_deleted_column);
+        if (miss_state_column)
+            throw Exception(ErrorCodes::NO_SUCH_COLUMN_IN_TABLE, "state column {} does not exist in table declaration.", state_column);
     };
 
 
@@ -1236,10 +1236,10 @@ void MergeTreeData::MergingParams::check(const StorageInMemoryMetadata & metadat
 
     if (mode == MergingParams::Replacing)
     {
-        if (!version_column.empty() && version_column == is_deleted_column)
-            throw Exception(ErrorCodes::BAD_ARGUMENTS, "The version and is_deleted column cannot be the same column ({})", version_column);
+        if (!version_column.empty() && version_column == state_column)
+            throw Exception(ErrorCodes::BAD_ARGUMENTS, "The version and state column cannot be the same column ({})", version_column);
 
-        check_is_deleted_column(true, "ReplacingMergeTree");
+        check_state_column(true, "ReplacingMergeTree");
         check_version_column(true, "ReplacingMergeTree");
     }
 
@@ -3673,9 +3673,9 @@ void MergeTreeData::checkAlterIsPossible(const AlterCommands & commands, Context
                     "Trying to ALTER RENAME version {} column", backQuoteIfNeed(command.column_name));
             }
         }
-        else if (command.column_name == merging_params.is_deleted_column)
+        else if (command.column_name == merging_params.state_column)
         {
-            checkSpecialColumn<DataTypeUInt8>("is_deleted", command);
+            checkSpecialColumn<DataTypeUInt8>("state", command);
         }
         else if (command.column_name == merging_params.sign_column)
         {

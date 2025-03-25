@@ -18,7 +18,7 @@ public:
     ReplacingSortedTransform(
         const Block & header, size_t num_inputs,
         SortDescription description_,
-        const String & is_deleted_column, const String & version_column,
+        const String & state_column, const String & version_column,
         size_t max_block_size_rows,
         size_t max_block_size_bytes,
         WriteBuffer * out_row_sources_buf_ = nullptr,
@@ -30,7 +30,7 @@ public:
             header,
             num_inputs,
             std::move(description_),
-            is_deleted_column,
+            state_column,
             version_column,
             max_block_size_rows,
             max_block_size_bytes,

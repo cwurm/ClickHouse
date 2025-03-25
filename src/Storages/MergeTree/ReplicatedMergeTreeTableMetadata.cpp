@@ -56,7 +56,7 @@ ReplicatedMergeTreeTableMetadata::ReplicatedMergeTreeTableMetadata(const MergeTr
     index_granularity = (*data_settings)[MergeTreeSetting::index_granularity];
     merging_params_mode = static_cast<int>(data.merging_params.mode);
     sign_column = data.merging_params.sign_column;
-    is_deleted_column = data.merging_params.is_deleted_column;
+    state_column = data.merging_params.state_column;
     columns_to_sum = fmt::format("{}", fmt::join(data.merging_params.columns_to_sum.begin(), data.merging_params.columns_to_sum.end(), ","));
     version_column = data.merging_params.version_column;
     if (data.merging_params.mode == MergeTreeData::MergingParams::Graphite)
@@ -164,8 +164,8 @@ void ReplicatedMergeTreeTableMetadata::write(WriteBuffer & out) const
         out << "merge parameters format version: " << merge_params_version << "\n";
         if (!version_column.empty())
             out << "version column: " << version_column << "\n";
-        if (!is_deleted_column.empty())
-            out << "is_deleted column: " << is_deleted_column << "\n";
+        if (!state_column.empty())
+            out << "state column: " << state_column << "\n";
         if (!columns_to_sum.empty())
             out << "columns to sum: " << columns_to_sum << "\n";
         if (!graphite_params_hash.empty())
@@ -231,8 +231,8 @@ void ReplicatedMergeTreeTableMetadata::read(ReadBuffer & in)
         if (checkString("version column: ", in))
             in >> version_column >> "\n";
 
-        if (checkString("is_deleted column: ", in))
-            in >> is_deleted_column >> "\n";
+        if (checkString("state column: ", in))
+            in >> state_column >> "\n";
 
         if (checkString("columns to sum: ", in))
             in >> columns_to_sum >> "\n";
@@ -306,8 +306,8 @@ void ReplicatedMergeTreeTableMetadata::checkImmutableFieldsEquals(
         if (version_column != from_zk.version_column)
             throwTableMetadataMismatch(table_name_for_error_message, "version column", from_zk.version_column, "", version_column);
 
-        if (is_deleted_column != from_zk.is_deleted_column)
-            throwTableMetadataMismatch(table_name_for_error_message, "is_deleted column", from_zk.is_deleted_column, "", is_deleted_column);
+        if (state_column != from_zk.state_column)
+            throwTableMetadataMismatch(table_name_for_error_message, "state column", from_zk.state_column, "", state_column);
 
         if (columns_to_sum != from_zk.columns_to_sum)
             throwTableMetadataMismatch(table_name_for_error_message, "sum columns", from_zk.columns_to_sum, "", columns_to_sum);

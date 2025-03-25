@@ -40,7 +40,7 @@ public:
     ReplacingSortedAlgorithm(
         const Block & header, size_t num_inputs,
         SortDescription description_,
-        const String & is_deleted_column,
+        const String & state_column,
         const String & version_column,
         size_t max_block_size_rows,
         size_t max_block_size_bytes,
@@ -53,7 +53,7 @@ public:
     Status merge() override;
 
 private:
-    ssize_t is_deleted_column_number = -1;
+    ssize_t state_column_number = -1;
     ssize_t version_column_number = -1;
     bool cleanup = false;
 

@@ -1220,7 +1220,7 @@ Default: 0.
 
 ## allow_experimental_replacing_merge_with_cleanup {#allow_experimental_replacing_merge_with_cleanup}
 
-Allow experimental CLEANUP merges for ReplacingMergeTree with `is_deleted` column. When enabled, allows using `OPTIMIZE ... FINAL CLEANUP` to manually merge all parts in a partition down to a single part and removing any deleted rows.
+Allow experimental CLEANUP merges for ReplacingMergeTree with `state` column. When enabled, allows using `OPTIMIZE ... FINAL CLEANUP` to manually merge all parts in a partition down to a single part and removing any deleted rows.
 
 Also allows enabling such merges to happen automatically in the background with settings `min_age_to_force_merge_seconds`, `min_age_to_force_merge_on_partition_only` and `enable_replacing_merge_with_cleanup_for_min_age_to_force_merge`.
 

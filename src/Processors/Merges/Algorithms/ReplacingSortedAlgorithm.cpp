@@ -33,7 +33,7 @@ ReplacingSortedAlgorithm::ReplacingSortedAlgorithm(
     const Block & header_,
     size_t num_inputs,
     SortDescription description_,
-    const String & is_deleted_column,
+    const String & state_column,
     const String & version_column,
     size_t max_block_size_rows,
     size_t max_block_size_bytes,
@@ -44,8 +44,8 @@ ReplacingSortedAlgorithm::ReplacingSortedAlgorithm(
     : IMergingAlgorithmWithSharedChunks(header_, num_inputs, std::move(description_), out_row_sources_buf_, max_row_refs, std::make_unique<MergedData>(use_average_block_sizes, max_block_size_rows, max_block_size_bytes))
     , cleanup(cleanup_), enable_vertical_final(enable_vertical_final_)
 {
-    if (!is_deleted_column.empty())
-        is_deleted_column_number = header_.getPositionByName(is_deleted_column);
+    if (!state_column.empty())
+        state_column_number = header_.getPositionByName(state_column);
 
     if (!version_column.empty())
         version_column_number = header_.getPositionByName(version_column);
@@ -53,9 +53,9 @@ ReplacingSortedAlgorithm::ReplacingSortedAlgorithm(
 
 void ReplacingSortedAlgorithm::insertRow()
 {
-    if (is_deleted_column_number != -1)
+    if (state_column_number != -1)
     {
-        if (!(cleanup && 1 == assert_cast<const ColumnUInt8 &>(*(*selected_row.all_columns)[is_deleted_column_number]).getData()[selected_row.row_num]))
+        if (!(cleanup && 1 == assert_cast<const ColumnUInt8 &>(*(*selected_row.all_columns)[state_column_number]).getData()[selected_row.row_num]))
             insertRowImpl();
     }
     else
@@ -140,7 +140,7 @@ IMergingAlgorithm::Status ReplacingSortedAlgorithm::merge()
 
         if (current->isFirst()
             && key_differs
-            && is_deleted_column_number == -1 /// Ignore optimization if we need to filter deleted rows.
+            && state_column_number == -1 /// Ignore optimization if we need to filter deleted rows.
             && sources_origin_merge_tree_part_level[current->order] > 0
             && !skipLastRowFor(current->order) /// Ignore optimization if last row should be skipped.
             && (queue.size() == 1 || (queue.size() >= 2 && current.totallyLess(queue.nextChild()))))
@@ -193,11 +193,13 @@ IMergingAlgorithm::Status ReplacingSortedAlgorithm::merge()
 
         UInt8 selected_state = 0;
         UInt8 current_state = 0;
-        if (is_deleted_column_number != -1)
+        if (state_column_number != -1)
         {
-            current_state = assert_cast<const ColumnUInt8 &>(*current->all_columns[is_deleted_column_number]).getData()[current->getRow()];
+            current_state = assert_cast<const ColumnUInt8 &>(*current->all_columns[state_column_number]).getData()[current->getRow()];
+            if (current_state > 2)
+                throw Exception(ErrorCodes::INCORRECT_DATA, "Incorrect data: state = {} (must be 0, 1 or 2)", toString(current_state));
             if (!selected_row.empty())
-                selected_state = assert_cast<const ColumnUInt8 &>(*(*selected_row.all_columns)[is_deleted_column_number]).getData()[selected_row.row_num];
+                selected_state = assert_cast<const ColumnUInt8 &>(*(*selected_row.all_columns)[state_column_number]).getData()[selected_row.row_num];
         }
 
         /// A non-strict comparison, since we select the last row for the same version values.

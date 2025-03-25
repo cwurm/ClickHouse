@@ -961,7 +961,7 @@ Pipe ReadFromMergeTree::spreadMarkRangesAmongStreams(RangesInDataParts && parts_
         read_split_ranges_into_intersecting_and_non_intersecting_injection_probability > 0.0 &&
         fault(thread_local_rng) &&
         !isQueryWithFinal() &&
-        data.merging_params.is_deleted_column.empty() &&
+        data.merging_params.state_column.empty() &&
         !prewhere_info &&
         !lazily_read_info &&
         !reader_settings.use_query_condition_cache) /// the query condition cache produces incorrect results with intersecting ranges
@@ -1313,7 +1313,7 @@ static void addMergingFinal(
 
             case MergeTreeData::MergingParams::Replacing:
                 return std::make_shared<ReplacingSortedTransform>(header, num_outputs,
-                            sort_description, merging_params.is_deleted_column, merging_params.version_column, max_block_size_rows, /*max_block_size_bytes=*/0, /*out_row_sources_buf_*/ nullptr, /*use_average_block_sizes*/ false, /*cleanup*/ !merging_params.is_deleted_column.empty(), enable_vertical_final);
+                            sort_description, merging_params.state_column, merging_params.version_column, max_block_size_rows, /*max_block_size_bytes=*/0, /*out_row_sources_buf_*/ nullptr, /*use_average_block_sizes*/ false, /*cleanup*/ !merging_params.state_column.empty(), enable_vertical_final);
 
 
             case MergeTreeData::MergingParams::VersionedCollapsing:
@@ -1436,7 +1436,7 @@ Pipe ReadFromMergeTree::spreadMarkRangesAmongStreamsFinal(
         bool no_merging_final = do_not_merge_across_partitions_select_final &&
             std::distance(parts_to_merge_ranges[range_index], parts_to_merge_ranges[range_index + 1]) == 1 &&
             parts_to_merge_ranges[range_index]->data_part->info.level > 0 &&
-            data.merging_params.is_deleted_column.empty() && !reader_settings.read_in_order;
+            data.merging_params.state_column.empty() && !reader_settings.read_in_order;
 
         if (no_merging_final)
         {
@@ -1468,11 +1468,11 @@ Pipe ReadFromMergeTree::spreadMarkRangesAmongStreamsFinal(
                         info.use_uncompressed_cache);
                 };
 
-                /// Parts of non-zero level still may contain duplicate PK values to merge on FINAL if there's is_deleted column,
+                /// Parts of non-zero level still may contain duplicate PK values to merge on FINAL if there's state column,
                 /// so we have to process all ranges. It would be more optimal to remove this flag and add an extra filtering step.
                 bool split_parts_ranges_into_intersecting_and_non_intersecting_final
                     = settings[Setting::split_parts_ranges_into_intersecting_and_non_intersecting_final]
-                    && data.merging_params.is_deleted_column.empty() && !reader_settings.read_in_order;
+                    && data.merging_params.state_column.empty() && !reader_settings.read_in_order;
 
                 SplitPartsWithRangesByPrimaryKeyResult split_ranges_result = splitPartsWithRangesByPrimaryKey(
                     storage_snapshot->metadata->getPrimaryKey(),
@@ -2159,8 +2159,8 @@ Pipe ReadFromMergeTree::spreadMarkRanges(
                 column_names_to_read.push_back(column);
         }
 
-        if (!data.merging_params.is_deleted_column.empty() && names.emplace(data.merging_params.is_deleted_column).second)
-            column_names_to_read.push_back(data.merging_params.is_deleted_column);
+        if (!data.merging_params.state_column.empty() && names.emplace(data.merging_params.state_column).second)
+            column_names_to_read.push_back(data.merging_params.state_column);
         if (!data.merging_params.sign_column.empty() && names.emplace(data.merging_params.sign_column).second)
             column_names_to_read.push_back(data.merging_params.sign_column);
         if (!data.merging_params.version_column.empty() && names.emplace(data.merging_params.version_column).second)

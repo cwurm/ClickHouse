@@ -27,7 +27,7 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
     name1 [type1] [DEFAULT|MATERIALIZED|ALIAS expr1],
     name2 [type2] [DEFAULT|MATERIALIZED|ALIAS expr2],
     ...
-) ENGINE = ReplacingMergeTree([ver [, is_deleted]])
+) ENGINE = ReplacingMergeTree([ver [, state]])
 [PARTITION BY expr]
 [ORDER BY expr]
 [PRIMARY KEY expr]
@@ -95,21 +95,27 @@ SELECT * FROM mySecondReplacingMT FINAL;
 └─────┴─────────┴─────────────────────┘
 ```
 
-### is_deleted {#is_deleted}
+### state {#state}
 
-`is_deleted` —  Name of a column used during a merge to determine whether the data in this row represents the state or is to be deleted; `1` is a "deleted" row, `0` is a "state" row.
+`state` — Optional name of a column that determines how this row should be merged.
 
-  Column data type — `UInt8`.
+Column data type — `UInt8`.
+
+Possible values:
+
+1. `0` - Row will replace any previous row with the same sorting key.
+2. `1` - Delete row that will mask any previous rows with the same sorting key. It will not show up in the result of `FINAL` queries.
+3. `2` - Insert if not exists row which will only show up in results of `FINAL` queries if there is no previous row with the same sorting key or the immediately previous row is a delete row.
 
 :::note
-`is_deleted` can only be enabled when `ver` is used.
+`state` can only be enabled when `ver` is used.
 
-No matter the operation on the data, the version should be increased. If two inserted rows have the same version number, the last inserted row is kept.
+No matter the operation on the data, the version should be increased. If two inserted rows have the same version number, they are processed in the order they were inserted.
 
-By default, ClickHouse will keep the last row for a key even if that row is a delete row. This is so that any future rows with lower versions can
-be safely inserted and the delete row will still be applied.
+By default, ClickHouse will keep the last row for a key even if that row is a delete row. It will also keep all rows with state `2` (insert if not exists) that are not followed by rows with other states. This is so that any future rows with lower versions can
+be safely inserted and the correct logic will still be applied.
 
-To permanently drop such delete rows, enable the table setting `allow_experimental_replacing_merge_with_cleanup` and either:
+To permanently merge away rows with states `1` and `2` that are not needed, enable the table setting `allow_experimental_replacing_merge_with_cleanup` and either:
 
 1. Set the table settings `enable_replacing_merge_with_cleanup_for_min_age_to_force_merge`, `min_age_to_force_merge_on_partition_only` and `min_age_to_force_merge_seconds`. If all parts in a partition are older than `min_age_to_force_merge_seconds`, ClickHouse will merge them
 all into a single part and remove any delete rows.
@@ -119,15 +125,15 @@ all into a single part and remove any delete rows.
 
 Example:
 ```sql
--- with ver and is_deleted
+-- with ver and state
 CREATE OR REPLACE TABLE myThirdReplacingMT
 (
     `key` Int64,
     `someCol` String,
     `eventTime` DateTime,
-    `is_deleted` UInt8
+    `state` UInt8
 )
-ENGINE = ReplacingMergeTree(eventTime, is_deleted)
+ENGINE = ReplacingMergeTree(eventTime, state)
 ORDER BY key
 SETTINGS allow_experimental_replacing_merge_with_cleanup = 1;
 
@@ -138,14 +144,14 @@ select * from myThirdReplacingMT final;
 
 0 rows in set. Elapsed: 0.003 sec.
 
--- delete rows with is_deleted
+-- Permanently drop delete row
 OPTIMIZE TABLE myThirdReplacingMT FINAL CLEANUP;
 
 INSERT INTO myThirdReplacingMT Values (1, 'first', '2020-01-01 00:00:00', 0);
 
 select * from myThirdReplacingMT final;
 
-┌─key─┬─someCol─┬───────────eventTime─┬─is_deleted─┐
+┌─key─┬─someCol─┬───────────eventTime─┬─state──────┐
 │   1 │ first   │ 2020-01-01 00:00:00 │          0 │
 └─────┴─────────┴─────────────────────┴────────────┘
 ```

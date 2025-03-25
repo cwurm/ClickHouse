@@ -21,7 +21,7 @@ public:
     bool deduplicate = false;
     /// Deduplicate by columns.
     ASTPtr deduplicate_by_columns;
-    /// Delete 'is_deleted' data
+    /// Merge away unneeded state rows in ReplacingMergeTree
     bool cleanup = false;
     /** Get the text that identifies this element. */
     String getID(char delim) const override

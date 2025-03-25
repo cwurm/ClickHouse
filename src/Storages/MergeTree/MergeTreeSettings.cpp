@@ -1608,10 +1608,10 @@ namespace ErrorCodes
     - [cache_warmer_threads](/operations/settings/settings#cache_warmer_threads)
     )", 0) \
     DECLARE(Bool, allow_experimental_replacing_merge_with_cleanup, false, R"(
-    Allow experimental CLEANUP merges for ReplacingMergeTree with `is_deleted`
+    Allow experimental CLEANUP merges for ReplacingMergeTree with a `state`
     column. When enabled, allows using `OPTIMIZE ... FINAL CLEANUP` to manually
     merge all parts in a partition down to a single part and removing any
-    deleted rows.
+    rows with `state != 0`.
 
     Also allows enabling such merges to happen automatically in the background
     with settings `min_age_to_force_merge_seconds`,

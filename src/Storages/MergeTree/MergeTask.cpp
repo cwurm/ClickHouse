@@ -271,7 +271,7 @@ void MergeTask::ExecuteAndFinalizeHorizontalPart::extractMergingAndGatheringColu
     /// Force version column for Replacing mode
     if (global_ctx->merging_params.mode == MergeTreeData::MergingParams::Replacing)
     {
-        key_columns.emplace(global_ctx->merging_params.is_deleted_column);
+        key_columns.emplace(global_ctx->merging_params.state_column);
         key_columns.emplace(global_ctx->merging_params.version_column);
     }
 
@@ -1597,7 +1597,7 @@ public:
 
             case MergeTreeData::MergingParams::Replacing:
                 merged_transform = std::make_shared<ReplacingSortedTransform>(
-                    header, input_streams_count, sort_description, merging_params.is_deleted_column, merging_params.version_column,
+                    header, input_streams_count, sort_description, merging_params.state_column, merging_params.version_column,
                     merge_block_size_rows, merge_block_size_bytes, rows_sources_write_buf, blocks_are_granules_size,
                     cleanup);
                 break;
