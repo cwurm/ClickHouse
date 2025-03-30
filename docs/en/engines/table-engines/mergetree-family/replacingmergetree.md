@@ -1,6 +1,6 @@
 ---
-description: 'differs from MergeTree in that it removes duplicate entries with the
-  same sorting key value (`ORDER BY` table section, not `PRIMARY KEY`).'
+description: 'differs from MergeTree in that it removes duplicate rows with the
+  same sorting key value (`ORDER BY` clause, not `PRIMARY KEY`).'
 sidebar_label: 'ReplacingMergeTree'
 sidebar_position: 40
 slug: /engines/table-engines/mergetree-family/replacingmergetree
@@ -9,14 +9,12 @@ title: 'ReplacingMergeTree'
 
 # ReplacingMergeTree
 
-The engine differs from [MergeTree](/engines/table-engines/mergetree-family/versionedcollapsingmergetree) in that it removes duplicate entries with the same [sorting key](../../../engines/table-engines/mergetree-family/mergetree.md) value (`ORDER BY` table section, not `PRIMARY KEY`).
+The engine differs from [MergeTree](/engines/table-engines/mergetree-family/versionedcollapsingmergetree) in that it removes duplicate rows with the same [sorting key](../../../engines/table-engines/mergetree-family/mergetree.md) value (`ORDER BY` clause, not `PRIMARY KEY`).
 
-Data deduplication occurs only during a merge. Merging occurs in the background at an unknown time, so you can't plan for it. Some of the data may remain unprocessed. Although you can run an unscheduled merge using the `OPTIMIZE` query, do not count on using it, because the `OPTIMIZE` query will read and write a large amount of data.
-
-Thus, `ReplacingMergeTree` is suitable for clearing out duplicate data in the background in order to save space, but it does not guarantee the absence of duplicates.
+Rows are deduplicated at query time if the [`FINAL`](../../../sql-reference/statements/select/from.md#final-modifier) modifier is used and during background merges. When exactly merges happen is unpredictable and you should generally not rely on the absence of duplicates at query time when not using the `FINAL` modifier.
 
 :::note
-A detailed guide on ReplacingMergeTree, including best practices and how to optimize performance, is available [here](/guides/replacing-merge-tree).
+Please read the detailed guide on [Updating Data with ReplacingMergeTree](/guides/replacing-merge-tree) for more information including best practices on schema design, merges and optimizing query performance.
 :::
 
 ## Creating a Table {#creating-a-table}
@@ -38,7 +36,7 @@ CREATE TABLE [IF NOT EXISTS] [db.]table_name [ON CLUSTER cluster]
 For a description of request parameters, see [statement description](../../../sql-reference/statements/create/table.md).
 
 :::note
-Uniqueness of rows is determined by the `ORDER BY` table section, not `PRIMARY KEY`.
+Uniqueness of rows is determined by the `ORDER BY` clause, not `PRIMARY KEY`.
 :::
 
 ## ReplacingMergeTree Parameters {#replacingmergetree-parameters}
@@ -97,22 +95,24 @@ SELECT * FROM mySecondReplacingMT FINAL;
 
 ### state {#state}
 
-`state` — Optional name of a column that determines how this row should be merged.
+`state` — Optional name of a column that determines how this row should be merged. If not specified, all rows are treated as if they had `state = 0`
+and will replace any previous rows with the same sorting key value.
 
 Column data type — `UInt8`.
 
 Possible values:
 
-1. `0` - Row will replace any previous row with the same sorting key.
-2. `1` - Delete row that will mask any previous rows with the same sorting key. It will not show up in the result of `FINAL` queries.
-3. `2` - Insert if not exists row which will only show up in results of `FINAL` queries if there is no previous row with the same sorting key or the immediately previous row is a delete row.
+- `0` - Row will replace any previous row with the same sorting key value.
+- `1` - Delete row that will mask any previous rows with the same sorting key value. It will not show up in the result of `FINAL` queries.
+- `2` - Insert if not exists row which will only show up in results of `FINAL` queries if there is no previous row with the same sorting key value or the immediately previous row is a delete row.
 
 :::note
 `state` can only be enabled when `ver` is used.
 
-No matter the operation on the data, the version should be increased. If two inserted rows have the same version number, they are processed in the order they were inserted.
+No matter the operation on the data, the version of a row with the same sorting key value as a previous row should be increased.
+If two inserted rows have the same version number, they are processed in the order they were inserted in.
 
-By default, ClickHouse will keep the last row for a key even if that row is a delete row. It will also keep all rows with state `2` (insert if not exists) that are not followed by rows with other states. This is so that any future rows with lower versions can
+ClickHouse will keep the last row for a key even if that row is a delete row. It will also keep all rows with state `2` (insert if not exists) that are not followed by rows with other states. This is so that any future rows with lower versions can
 be safely inserted and the correct logic will still be applied.
 
 To permanently merge away rows with states `1` and `2` that are not needed, enable the table setting `allow_experimental_replacing_merge_with_cleanup` and either:
@@ -125,8 +125,8 @@ all into a single part and remove any delete rows.
 
 Example:
 ```sql
--- with ver and state
-CREATE OR REPLACE TABLE myThirdReplacingMT
+-- With version and state
+CREATE TABLE replacing
 (
     `key` Int64,
     `someCol` String,
@@ -137,17 +137,28 @@ ENGINE = ReplacingMergeTree(eventTime, state)
 ORDER BY key
 SETTINGS allow_experimental_replacing_merge_with_cleanup = 1;
 
-INSERT INTO myThirdReplacingMT Values (1, 'first', '2020-01-01 01:01:01', 0);
-INSERT INTO myThirdReplacingMT Values (1, 'first', '2020-01-01 01:01:01', 1);
+INSERT INTO replacing Values (1, 'first', '2020-01-01 01:01:01', 0);
+INSERT INTO replacing Values (1, 'second', '2020-01-01 01:01:02', 1);
 
-select * from myThirdReplacingMT final;
+SELECT * FROM replacing FINAL;
 
 0 rows in set. Elapsed: 0.003 sec.
 
--- Permanently drop delete row
-OPTIMIZE TABLE myThirdReplacingMT FINAL CLEANUP;
+INSERT INTO replacing Values (1, 'third', '2020-01-01 01:01:03', 2);
 
-INSERT INTO myThirdReplacingMT Values (1, 'first', '2020-01-01 00:00:00', 0);
+-- Merge but preserve delete and insert if not exists row
+OPTIMIZE TABLE replacing FINAL;
+
+SELECT * FROM replacing FINAL;
+
+┌─key─┬─someCol─┬───────────eventTime─┬─state─┐
+│   1 │ third   │ 2020-01-01 01:01:03 │     2 │
+└─────┴─────────┴─────────────────────┴───────┘
+
+-- Permanently drop delete row
+OPTIMIZE TABLE replacing FINAL CLEANUP;
+
+INSERT INTO replacing Values (1, 'first', '2020-01-01 00:00:00', 0);
 
 select * from myThirdReplacingMT final;
 
