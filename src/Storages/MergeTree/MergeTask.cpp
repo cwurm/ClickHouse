@@ -2577,7 +2577,7 @@ public:
                     merge_block_size_rows,
                     merge_block_size_bytes,
                     max_dynamic_subcolumns,
-                    SortingQueueStrategy::Default,
+                    SortingQueueStrategy::Batch,
                     /* limit_= */0,
                     /* always_read_till_end_= */false,
                     rows_sources_write_buf,
