@@ -7,6 +7,7 @@
 #include <base/sleep.h>
 #include <Common/FailPoint.h>
 #include <Common/Logger.h>
+#include <Common/MemoryTrackerSwitcher.h>
 #include <Common/SystemLogBase.h>
 #include <Common/logger_useful.h>
 #include <Common/quoteString.h>
@@ -125,6 +126,7 @@ void flushAsyncTextLogsIfPossible()
 constexpr size_t DEFAULT_METRIC_LOG_COLLECT_INTERVAL_MILLISECONDS = 1000;
 constexpr size_t DEFAULT_ERROR_LOG_COLLECT_INTERVAL_MILLISECONDS = 1000;
 constexpr size_t DEFAULT_AGGREGATED_ZOOKEEPER_LOG_COLLECT_INTERVAL_MILLISECONDS = 1000;
+constexpr UInt64 DEFAULT_SYSTEM_LOG_FLUSH_OVERCOMMIT_WAIT_TIME_MICROSECONDS = 5'000'000;
 
 /// Creates a system log with MergeTree engine using parameters from config
 template <typename TSystemLog>
@@ -254,6 +256,9 @@ std::shared_ptr<TSystemLog> createSystemLog(
 
     log_settings.queue_settings.flush_interval_milliseconds = config.getUInt64(config_prefix + ".flush_interval_milliseconds",
                                                                                TSystemLog::getDefaultFlushIntervalMilliseconds());
+
+    log_settings.queue_settings.flush_overcommit_wait_time_microseconds = config.getUInt64(
+        config_prefix + ".flush_overcommit_wait_time_microseconds", DEFAULT_SYSTEM_LOG_FLUSH_OVERCOMMIT_WAIT_TIME_MICROSECONDS);
 
     log_settings.queue_settings.max_size_rows = config.getUInt64(config_prefix + ".max_size_rows",
                                                                  TSystemLog::getDefaultMaxSize());
@@ -692,6 +697,14 @@ void SystemLog<LogElement>::savingThreadFunction()
 template <typename LogElement>
 void SystemLog<LogElement>::flushImpl(const std::vector<LogElement> & to_flush, uint64_t to_flush_end)
 {
+    /// The system-log flush is intentionally not registered in ProcessList. Use a temporary process-level
+    /// tracker instead of changing the thread tracker directly: this makes it the requester passed to
+    /// total_memory_tracker, where the global overcommit tracker can use its waiting time. The temporary
+    /// tracker is not a ProcessList entry and therefore cannot be selected as an overcommit victim.
+    MemoryTracker flush_memory_tracker(&total_memory_tracker, VariableContext::Process, /*log_peak_memory_usage_in_destructor=*/ false);
+    flush_memory_tracker.setOvercommitWaitingTime(this->flush_overcommit_wait_time_microseconds);
+    MemoryTrackerSwitcher memory_tracker_switcher(&flush_memory_tracker);
+
     auto component_guard = Coordination::setCurrentComponent("SystemLog::flushImpl");
     Stopwatch stopwatch;
     UInt64 prepare_table_time = 0;

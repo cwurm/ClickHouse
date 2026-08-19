@@ -122,6 +122,7 @@ struct SystemLogQueueSettings
     size_t max_size_rows{};
     size_t buffer_size_rows_flush_threshold{};
     size_t flush_interval_milliseconds{};
+    UInt64 flush_overcommit_wait_time_microseconds{};
     bool notify_flush_on_crash{};
     bool turn_off_logger{};
 };
@@ -263,5 +264,6 @@ protected:
     void stopFlushThread() final;
 
     std::shared_ptr<SystemLogQueue<LogElement>> queue;
+    const UInt64 flush_overcommit_wait_time_microseconds;
 };
 }

@@ -302,6 +302,7 @@ SystemLogBase<LogElement>::SystemLogBase(
     const SystemLogQueueSettings & settings_,
     std::shared_ptr<SystemLogQueue<LogElement>> queue_)
     : queue(queue_ ? queue_ : std::make_shared<SystemLogQueue<LogElement>>(settings_))
+    , flush_overcommit_wait_time_microseconds(settings_.flush_overcommit_wait_time_microseconds)
 {
 }
 

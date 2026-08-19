@@ -1,0 +1,10 @@
+<clickhouse>
+    <max_server_memory_usage>300000000</max_server_memory_usage>
+    <allow_use_jemalloc_memory>false</allow_use_jemalloc_memory>
+
+    <query_log>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+        <flush_overcommit_wait_time_microseconds>5000000</flush_overcommit_wait_time_microseconds>
+        <buffer_size_rows_flush_threshold>1000000</buffer_size_rows_flush_threshold>
+    </query_log>
+</clickhouse>

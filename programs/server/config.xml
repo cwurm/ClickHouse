@@ -1240,6 +1240,8 @@
 
         <!-- Interval of flushing data. -->
         <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+        <!-- Maximum time to wait for memory overcommit to evict another query during a flush. -->
+        <flush_overcommit_wait_time_microseconds>5000000</flush_overcommit_wait_time_microseconds>
         <!-- Maximum size in lines for the logs. When non-flushed logs amount reaches max_size, logs dumped to the disk. -->
         <max_size_rows>1048576</max_size_rows>
         <!-- Pre-allocated size in lines for the logs. -->
@@ -1476,6 +1478,7 @@
 
         <partition_by>toYYYYMM(event_date)</partition_by>
         <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+        <flush_overcommit_wait_time_microseconds>5000000</flush_overcommit_wait_time_microseconds>
         <max_size_rows>1048576</max_size_rows>
         <reserved_size_rows>8192</reserved_size_rows>
         <buffer_size_rows_flush_threshold>524288</buffer_size_rows_flush_threshold>
