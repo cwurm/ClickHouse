@@ -3382,6 +3382,8 @@ If the refreshable materialized view is in a [Replicated database](/reference/en
 
 `RANDOMIZE FOR` is applied by each replica independently, so the replicas do not agree on the exact time of the next refresh and whichever one comes first performs it. This means a random replica refreshes each time, and that `next_refresh_time` in [`system.view_refreshes`](/reference/system-tables/view_refreshes) reports the time this replica would refresh at, not necessarily the time the refresh actually happens. Because the earliest of several random times is earlier than one random time on average, refreshes happen slightly earlier inside the `RANDOMIZE FOR` window the more replicas there are.
 
+When a refresh is due, each replica also waits a random delay of up to `refresh_coordination_jitter_ms` (1 second by default) before trying to start it, so that a random replica wins even without `RANDOMIZE FOR`. Without this delay the replica with the lowest latency to the Keeper leader would win almost every time. This delay does not apply to `SYSTEM REFRESH VIEW`, and is not reflected in `next_refresh_time`.
+
 In `APPEND` mode, coordination can be disabled using `SETTINGS all_replicas = 1`. This makes replicas do refreshes independently of each other. In this case ReplicatedMergeTree is not required.
 
 In non-`APPEND` mode, only coordinated refreshing is supported. For uncoordinated, use `Atomic` database and `CREATE ... ON CLUSTER` query to create refreshable materialized views on all replicas.
@@ -3484,6 +3486,7 @@ Available refresh settings:
 * `refresh_retry_initial_backoff_ms` - Delay before the first retry, if `refresh_retries` is not zero. Each subsequent retry doubles the delay, up to `refresh_retry_max_backoff_ms`. Default: 100 ms.
 * `refresh_retry_max_backoff_ms` - Limit on the exponential growth of delay between refresh attempts. Default: 60000 ms (1 minute).
 * `all_replicas` - In a [Replicated database](/reference/engines/database-engines/replicated) with `APPEND`, controls whether all replicas refresh independently or only one replica refreshes at each scheduled time. Cannot be changed after the view is created. Default: `false`.
+* `refresh_coordination_jitter_ms` - In a [Replicated database](/reference/engines/database-engines/replicated), each replica waits a random delay of up to this many milliseconds before trying to start a due refresh, so that refreshes are spread across replicas. 0 disables the delay. Default: 1000 ms.
 
 ### Changing Refresh Parameters {#changing-refresh-parameters}
 

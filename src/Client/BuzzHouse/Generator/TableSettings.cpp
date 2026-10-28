@@ -778,6 +778,7 @@ std::unordered_map<String, CHSetting> projectionSettings
 
 std::unordered_map<String, CHSetting> refreshSettings
     = {{"all_replicas", trueOrFalseSettingNoOracle},
+       {"refresh_coordination_jitter_ms", highRangeSetting},
        {"refresh_retries", highRangeSetting},
        {"refresh_retry_initial_backoff_ms", highRangeSetting},
        {"refresh_retry_max_backoff_ms", highRangeSetting}};
