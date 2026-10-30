@@ -342,9 +342,10 @@ private:
         std::chrono::sys_seconds randomness_drawn_for_timeslot {};
         Int64 randomness = 0;
 
-        /// When this replica may try to start a due coordinated refresh, see `refresh_coordination_jitter_ms`.
-        /// Drawn when a refresh first becomes due, and redrawn when the root znode version changes.
-        std::optional<std::pair<int32_t /*root znode version*/, std::chrono::steady_clock::time_point>> coordination_jitter;
+        /// When this replica may start a due coordinated refresh (`refresh_coordination_jitter_ms`),
+        /// and the root znode version it was drawn for. Redrawn when the version changes.
+        int32_t jitter_drawn_for_version = -1;
+        std::chrono::steady_clock::time_point jitter_deadline {};
 
         /// Solves this unusual case:
         /// View X: REFRESH EVERY 10 SECOND.

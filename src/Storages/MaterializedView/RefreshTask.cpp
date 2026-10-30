@@ -149,7 +149,7 @@ Int64 drawRandomness()
 }
 
 /// Draw the delay before trying to start a coordinated refresh, see `refresh_coordination_jitter_ms`.
-/// Capped at a day, which no sensible setting value reaches, so that steady_clock arithmetic can't overflow.
+/// Capped at a day so that steady_clock arithmetic can't overflow.
 std::chrono::milliseconds drawCoordinationJitter(UInt64 max_ms)
 {
     max_ms = std::min<UInt64>(max_ms, 24 * 3600 * 1000);
@@ -1288,17 +1288,19 @@ void RefreshTask::doScheduling(bool is_shutdown)
             return;
         }
 
-        /// Wait a random delay before racing the other replicas to start the refresh. Otherwise the
-        /// replica whose request reaches the Keeper leader first (e.g. the one in the leader's
-        /// availability zone) would win every time.
+        /// Wait a random delay before racing the other replicas to start the refresh, otherwise the
+        /// replica with the lowest latency to the Keeper leader would win nearly every time.
         if (coordination.coordinated && !out_of_schedule)
         {
             auto now = std::chrono::steady_clock::now();
-            if (!scheduling.coordination_jitter || scheduling.coordination_jitter->first != coordination.root_znode.version)
-                scheduling.coordination_jitter.emplace(coordination.root_znode.version, now + drawCoordinationJitter(refresh_settings[RefreshSetting::refresh_coordination_jitter_ms]));
-            if (now < scheduling.coordination_jitter->second)
+            if (scheduling.jitter_drawn_for_version != coordination.root_znode.version)
             {
-                auto delay = std::chrono::ceil<std::chrono::milliseconds>(scheduling.coordination_jitter->second - now);
+                scheduling.jitter_drawn_for_version = coordination.root_znode.version;
+                scheduling.jitter_deadline = now + drawCoordinationJitter(refresh_settings[RefreshSetting::refresh_coordination_jitter_ms]);
+            }
+            if (now < scheduling.jitter_deadline)
+            {
+                auto delay = std::chrono::ceil<std::chrono::milliseconds>(scheduling.jitter_deadline - now);
                 /// Not later than the takeover check above, as this timer overwrites the one set there.
                 if (takeover_deadline != std::chrono::system_clock::time_point::max())
                     delay = std::min(delay, std::chrono::ceil<std::chrono::milliseconds>(takeover_deadline - start_time));
