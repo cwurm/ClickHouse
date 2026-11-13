@@ -3644,7 +3644,7 @@ Run the `SELECT` query again, which will return the following output:
 In some cases, you might want to avoid pre-aggregating rows at insert time to shift the cost of aggregation from insert time
 to merge time. Ordinarily, it is necessary to include the columns which are not part of the aggregation in the `GROUP BY`
 clause of the materialized view definition to avoid an error. However, you can make use of the [`initializeAggregation`](/reference/functions/regular-functions/other-functions#initializeAggregation)
-function with setting `optimize_on_insert = 0` (it is turned on by default) to achieve this. Use of `GROUP BY`
+function with setting `optimize_on_insert = 0` (the default) to achieve this. Use of `GROUP BY`
 is no longer required in this case:
 
 ```sql
@@ -3660,7 +3660,7 @@ FROM test.visits;
 <Note>
 When using `initializeAggregation`, an aggregate state is created for each individual row without grouping.
 Each source row produces one row in the materialized view, and the actual aggregation happens later when the
-`AggregatingMergeTree` merges parts. This is only true if `optimize_on_insert = 0`.
+`AggregatingMergeTree` merges parts. This is only true with `optimize_on_insert = 0`, which is the default.
 </Note>
 
 ## Tuple element aggregation {#tuple-element-aggregation}

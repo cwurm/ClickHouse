@@ -43,7 +43,8 @@ def test_empty_parts_optimize(start_cluster):
         )
 
     node1.query(
-        "INSERT INTO empty VALUES (1, 1, '2020-01-01'), (1, 1, '2020-01-01'), (1, -2, '2020-01-01')"
+        "INSERT INTO empty VALUES (1, 1, '2020-01-01'), (1, 1, '2020-01-01'), (1, -2, '2020-01-01')",
+        settings={"optimize_on_insert": 1},
     )
 
     node2.query("SYSTEM SYNC REPLICA empty", timeout=15)
@@ -63,7 +64,7 @@ def test_empty_parts_optimize(start_cluster):
 
     node1.query(
         "INSERT INTO empty VALUES (1, 1, '2020-02-01'), (1, 1, '2020-02-01'), (1, -2, '2020-02-01')",
-        settings={"insert_quorum": 2},
+        settings={"insert_quorum": 2, "optimize_on_insert": 1},
     )
 
     assert node1.query("SELECT * FROM empty") == ""

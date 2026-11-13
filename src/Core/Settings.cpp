@@ -6908,8 +6908,15 @@ Possible values:
 - 1 - Enable optimization.
 - 0 - Disable optimization.
 )", 0) \
-    DECLARE(Bool, optimize_on_insert, true, R"(
+    DECLARE(Bool, optimize_on_insert, false, R"(
 Enables or disables data transformation before the insertion, as if merge was done on this block (according to table engine).
+
+The transformation runs the merge algorithm of the table engine over every inserted block, which makes inserts considerably
+slower and more memory-hungry, especially for wide tables. Without it, rows with the same sorting key within one insert are
+merged in the background, like rows from different inserts. Invalid values of the `sign` column of `CollapsingMergeTree` and
+`VersionedCollapsingMergeTree` and of the `is_deleted` column of `ReplacingMergeTree` are rejected by implicit constraints
+instead, see the MergeTree settings `add_implicit_sign_column_constraint_for_collapsing_engine` and
+`add_implicit_is_deleted_column_constraint_for_replacing_engine`.
 
 Possible values:
 
@@ -6959,6 +6966,7 @@ Result:
 
 Note that this setting influences [Materialized view](/reference/statements/create/view#materialized-view) behaviour.
 )", 0, \
+        {"26.11", true, false, "Disable data optimization on INSERT by default: it makes inserts into special MergeTree engines several times slower. Invalid sign and is_deleted values are rejected by implicit constraints instead."}, \
         {"21.1", false, true, "Enable data optimization on INSERT by default for better user experience"}) \
     DECLARE_WITH_ALIAS(Bool, optimize_use_projections, true, R"(
 Enables or disables [projection](/reference/engines/table-engines/mergetree-family/mergetree#projections) optimization when processing `SELECT` queries.

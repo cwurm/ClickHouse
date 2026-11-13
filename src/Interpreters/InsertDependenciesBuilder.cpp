@@ -135,6 +135,7 @@ namespace Setting
 namespace MergeTreeSetting
 {
     extern const MergeTreeSettingsBool add_implicit_sign_column_constraint_for_collapsing_engine;
+    extern const MergeTreeSettingsBool add_implicit_is_deleted_column_constraint_for_replacing_engine;
     extern const MergeTreeSettingsBool share_nested_offsets;
     extern const MergeTreeSettingsUInt64 non_replicated_deduplication_window;
     extern const MergeTreeSettingsUInt64 replicated_deduplication_window;
@@ -499,34 +500,52 @@ private:
 };
 
 
+/// Adds an implicit constraint that rejects invalid values of the `sign` column of `CollapsingMergeTree` and
+/// `VersionedCollapsingMergeTree`, or of the `is_deleted` column of `ReplacingMergeTree`.
 static DB::ConstraintsDescription buildConstraints(StorageMetadataPtr metadata, StoragePtr storage)
 {
     auto constraints = metadata->getConstraints();
 
     auto storage_merge_tree = castStorage<MergeTreeData>(storage, DeferredTable::Load);
-    if (storage_merge_tree
-        && (storage_merge_tree->merging_params.mode == MergeTreeData::MergingParams::Collapsing
-            || storage_merge_tree->merging_params.mode == MergeTreeData::MergingParams::VersionedCollapsing)
-        && (*storage_merge_tree->getSettings())[MergeTreeSetting::add_implicit_sign_column_constraint_for_collapsing_engine])
+    if (!storage_merge_tree)
+        return constraints;
+
+    const auto & merging_params = storage_merge_tree->merging_params;
+    const auto & storage_settings = *storage_merge_tree->getSettings();
+
+    String constraint_name;
+    String column_name;
+    Array valid_values;
+    if ((merging_params.mode == MergeTreeData::MergingParams::Collapsing
+            || merging_params.mode == MergeTreeData::MergingParams::VersionedCollapsing)
+        && storage_settings[MergeTreeSetting::add_implicit_sign_column_constraint_for_collapsing_engine])
     {
-        auto sign_column_check_constraint = make_intrusive<ASTConstraintDeclaration>();
-        sign_column_check_constraint->name = "_implicit_sign_column_constraint";
-        sign_column_check_constraint->type = ASTConstraintDeclaration::Type::CHECK;
-
-        Array valid_values_array;
-        valid_values_array.emplace_back(-1);
-        valid_values_array.emplace_back(1);
-
-        auto valid_values_ast = make_intrusive<ASTLiteral>(std::move(valid_values_array));
-        auto sign_column_ast = make_intrusive<ASTIdentifier>(storage_merge_tree->merging_params.sign_column);
-        sign_column_check_constraint->set(sign_column_check_constraint->expr, makeASTOperator("in", std::move(sign_column_ast), std::move(valid_values_ast)));
-
-        auto constraints_ast = constraints.getConstraints();
-        constraints_ast.push_back(std::move(sign_column_check_constraint));
-        constraints = ConstraintsDescription(constraints_ast);
+        constraint_name = "_implicit_sign_column_constraint";
+        column_name = merging_params.sign_column;
+        valid_values = {Field(-1), Field(1)};
+    }
+    else if (merging_params.mode == MergeTreeData::MergingParams::Replacing && !merging_params.is_deleted_column.empty()
+        && storage_settings[MergeTreeSetting::add_implicit_is_deleted_column_constraint_for_replacing_engine])
+    {
+        constraint_name = "_implicit_is_deleted_column_constraint";
+        column_name = merging_params.is_deleted_column;
+        valid_values = {Field(0), Field(1)};
     }
 
-    return constraints;
+    if (column_name.empty())
+        return constraints;
+
+    auto check_constraint = make_intrusive<ASTConstraintDeclaration>();
+    check_constraint->name = constraint_name;
+    check_constraint->type = ASTConstraintDeclaration::Type::CHECK;
+
+    auto valid_values_ast = make_intrusive<ASTLiteral>(std::move(valid_values));
+    auto column_ast = make_intrusive<ASTIdentifier>(column_name);
+    check_constraint->set(check_constraint->expr, makeASTOperator("in", std::move(column_ast), std::move(valid_values_ast)));
+
+    auto constraints_ast = constraints.getConstraints();
+    constraints_ast.push_back(std::move(check_constraint));
+    return ConstraintsDescription(constraints_ast);
 }
 
 

@@ -1407,10 +1407,17 @@ It is useful for multi-tenant, temporary, and demo services.
 If true, data from INSERT query is stored in queue and later flushed to
 table in background.
 )", 0) \
-    DECLARE(Bool, add_implicit_sign_column_constraint_for_collapsing_engine, false, R"(
+    DECLARE(Bool, add_implicit_sign_column_constraint_for_collapsing_engine, true, R"(
 If true, adds an implicit constraint for the `sign` column of a CollapsingMergeTree
 or VersionedCollapsingMergeTree table to allow only valid values (`1` and `-1`).
-)", 0) \
+)", 0, \
+        {"26.11", false, true, "Enabled by default because `optimize_on_insert`, which rejected invalid values of the sign column of CollapsingMergeTree, is now disabled by default"}) \
+    DECLARE(Bool, add_implicit_is_deleted_column_constraint_for_replacing_engine, true, R"(
+If true, adds an implicit constraint for the `is_deleted` column of a ReplacingMergeTree
+table to allow only valid values (`0` and `1`). A part with another value of the column
+cannot be merged.
+)", 0, \
+        {"26.11", false, true, "New setting to reject invalid values of the is_deleted column of ReplacingMergeTree, which were rejected only by `optimize_on_insert`, now disabled by default"}) \
     DECLARE(Milliseconds, sleep_before_commit_local_part_in_replicated_table_ms, 0, R"(
 For testing. Do not change it.
 )", 0) \

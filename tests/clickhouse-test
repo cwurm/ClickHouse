@@ -2033,7 +2033,7 @@ class SettingsRandomizer:
         "optimize_move_to_prewhere": lambda: random.random() > 0.05,
         "optimize_multiif_to_if": lambda: random.random() > 0.05,
         "optimize_normalize_count_variants": lambda: random.random() > 0.05,
-        "optimize_on_insert": lambda: random.random() > 0.05,
+        "optimize_on_insert": lambda: random.random() < 0.05,
         "optimize_redundant_functions_in_order_by": lambda: random.random() > 0.05,
         "optimize_respect_aliases": lambda: random.random() > 0.05,
         "optimize_rewrite_aggregate_function_with_if": lambda: random.random() > 0.05,
